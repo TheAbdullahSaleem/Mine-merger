@@ -710,15 +710,15 @@
       <div><span>Run Coins</span><b id="ovCoins">0</b></div>
       <div><span>Best Gem</span><b id="ovTier">&mdash;</b></div>
     </div>
-    <button id="btnRevive" class="ad-btn">
+    <button id="btnRevive" class="ad-btn" type="button">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="5.6" width="17.6" height="12.8" rx="2.4"/><path d="M10.2 9.6l4.8 2.4-4.8 2.4z" fill="currentColor" stroke="none"/></svg>
       ▶ WATCH VIDEO TO REVIVE
     </button>
-    <button id="btnDouble" class="ad-btn">
+    <button id="btnDouble" class="ad-btn" type="button">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="5.6" width="17.6" height="12.8" rx="2.4"/><path d="M10.2 9.6l4.8 2.4-4.8 2.4z" fill="currentColor" stroke="none"/></svg>
       ▶ WATCH VIDEO TO DOUBLE COINS
     </button>
-    <button id="btnRestart" class="big-btn" style="margin-top:6px;">
+    <button id="btnRestart" class="big-btn" type="button" style="margin-top:6px;">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 3.6v5.2h-5.2"/></svg>
       BACK TO THE SHAFT
     </button>
@@ -1025,6 +1025,7 @@ const Sfx = {
    ========================================================== */
 let cgSDK = null;
 let adBusy = false;
+let adModeDisabled = false; // Set when CrazyGames reports adsDisabled (e.g. Basic Launch).
 let desiredGameplay = false;
 let rewardedUsedThisRun = false;
 let rewardCooldownUntil = 0;
@@ -1043,9 +1044,17 @@ const REWARD_COOLDOWN_MS = 5 * 60 * 1000;
           syncCrazyGameplay();
           refreshRewardButtons();
         }
-      } catch(err){ console.warn('[CG] SDK init failed', err); }
+      } catch(err){
+        console.warn('[CG] SDK init failed', err);
+        adModeDisabled = true;
+        refreshRewardButtons();
+      }
     };
-    s.onerror = function(){ console.warn('[CG] SDK unavailable; running without platform features.'); };
+    s.onerror = function(){
+      console.warn('[CG] SDK unavailable; using coin-based reward options.');
+      adModeDisabled = true;
+      refreshRewardButtons();
+    };
     document.head.appendChild(s);
   } catch(e){ console.warn('[CG] SDK load failed', e); }
 })();
@@ -1076,6 +1085,17 @@ function refreshRewardButtons(){
   const reviveBtn = document.getElementById('btnRevive');
   const doubleBtn = document.getElementById('btnDouble');
   const cooling = Date.now() < rewardCooldownUntil;
+
+  // Basic Launch and other ads-disabled sessions must remain fully playable.
+  // Offer coin-based equivalents instead of dead rewarded-ad controls.
+  if (adModeDisabled){
+    reviveBtn.disabled = saveData.coins < 250;
+    doubleBtn.disabled = saveData.coins < 100 || runCoins <= 0 || doubleUsed;
+    reviveBtn.textContent = 'REVIVE · 250 COINS';
+    doubleBtn.textContent = doubleUsed ? 'PAYOUT BOOST ALREADY USED' : 'BOOST PAYOUT · 100 COINS';
+    return;
+  }
+
   const unavailable = rewardedUsedThisRun || cooling || !cgSDK || !cgSDK.ad;
   reviveBtn.disabled = unavailable;
   doubleBtn.disabled = unavailable;
@@ -1095,6 +1115,15 @@ function refreshRewardButtons(){
   }
 }
 
+function noteAdUnavailable(error){
+  const code = typeof error === 'string' ? error : error && (error.code || error.errorCode);
+  // Any failed ad request switches this session to clear coin-based alternatives.
+  // This covers Basic Launch (adsDisabled), adblock and unfilled inventory.
+  if (code){ console.info('[CG] Ad unavailable:', code); }
+  adModeDisabled = true;
+  refreshRewardButtons();
+}
+
 let lastMidgame = Date.now();
 function withMidgame(cb){
   if (!cgSDK || !cgSDK.ad || adBusy || Date.now() - lastMidgame < 180000){ cb(); return; }
@@ -1111,7 +1140,7 @@ function withMidgame(cb){
   try {
     cgSDK.ad.requestAd('midgame', {
       adStarted: function(){ Sfx.muted = true; if (Sfx.master && Sfx.ctx) Sfx.master.gain.setTargetAtTime(0, Sfx.ctx.currentTime, 0.025); cgGameplayStop(); },
-      adFinished: fin, adError: fin
+      adFinished: fin, adError: function(error){ noteAdUnavailable(error); fin(); }
     });
   } catch(e){ fin(); }
 }
@@ -1153,6 +1182,7 @@ function showRewardedAd(onReward){
         showToast('Reward received. Good luck down the mine!', 3000);
       },
       adError: function(error){
+        noteAdUnavailable(error);
         if (settled) return;
         settled = true;
         restore();
@@ -2837,10 +2867,32 @@ function useBoost(kind){
 document.getElementById('btnDynamite').addEventListener('click', function(){ useBoost('dynamite'); });
 document.getElementById('btnShake').addEventListener('click', function(){ useBoost('shake'); });
 document.getElementById('btnRevive').addEventListener('click', function(){
+  if (adModeDisabled){
+    if (saveData.coins < 250) return;
+    saveData.coins -= 250;
+    saveNow();
+    updateHud();
+    revive();
+    return;
+  }
   showRewardedAd(function(){ revive(); });
 });
 
 document.getElementById('btnDouble').addEventListener('click', function(){
+  if (adModeDisabled){
+    if (doubleUsed || saveData.coins < 100 || runCoins <= 0) return;
+    doubleUsed = true;
+    saveData.coins -= 100;
+    saveData.coins += runCoins;
+    runCoins *= 2;
+    saveData.best = Math.max(saveData.best, runCoins);
+    document.getElementById('ovCoins').textContent = fmt(runCoins);
+    Sfx.cashRegister();
+    updateHud();
+    saveNow();
+    refreshRewardButtons();
+    return;
+  }
   showRewardedAd(function(){
     if (!doubleUsed){
       doubleUsed = true;
