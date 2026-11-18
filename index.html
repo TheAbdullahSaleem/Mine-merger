@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#17100a"/>
-<title>Gem Drop: Idle Miner</title>
+<meta name="description" content="Drop gems, merge matching stones, build combos and upgrade your mining kit in Gem Drop."/>
+<title>Gem Drop: Deep Mine</title>
 <style>
   :root{
     --paper:#f6ecd7;
@@ -16,7 +17,7 @@
     --amber-d:#a4661a;
     --gold:#f2c14e;
     --line:#8a6238;
-    --hand:"Segoe Print","Bradley Hand","Chalkboard SE","Comic Sans MS",cursive;
+    --hand:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
     --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -359,6 +360,265 @@
     .card-icon{width:50px;height:50px;font-size:32px;}
     .shop-board{padding:20px 14px 12px;}
   }
+
+  /* Progression rail — kept outside the shaft so the active stone stays visible. */
+  #progressHud{position:fixed;z-index:8;left:0;top:78px;width:88px;padding:8px 6px 7px;pointer-events:none;color:#f8e8c7;text-align:left;font-family:var(--hand);background:linear-gradient(180deg,rgba(35,24,15,.92),rgba(20,13,8,.91));border:1px solid rgba(226,180,105,.45);border-radius:10px;box-shadow:0 5px 16px rgba(0,0,0,.24);}
+  #evolutionTrack{display:flex;flex-direction:column;gap:3px;padding:0;background:none;border:0;}
+  .evo-step{display:grid;grid-template-columns:13px minmax(0,1fr);align-items:center;gap:5px;min-height:15px;min-width:0;padding:1px 3px;border-radius:5px;opacity:.46;font-size:8px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px #000;}
+  .evo-step .stone{display:block;width:10px;height:10px;margin:0;border-radius:50%;border:1px solid rgba(255,255,255,.45);box-shadow:0 0 5px currentColor;background:var(--gem);}
+  .evo-step.reached{opacity:.94}.evo-step.next{opacity:1;color:#ffe08a;background:rgba(255,206,112,.12);}
+  .evo-step.next .stone{box-shadow:0 0 8px var(--gem),0 0 12px #ffd36b;border:1px solid #fff0b4;}
+  #goalHud{margin:7px 0 0;width:100%;padding:6px 4px 5px;border-radius:7px;background:rgba(255,255,255,.055);border-top:1px solid rgba(242,193,78,.38);text-align:left;}
+  #goalLabel{font-size:7px;display:flex;flex-direction:column;gap:2px;color:#ffe9bd;margin-bottom:4px;line-height:1.15;letter-spacing:.25px;text-transform:uppercase;}
+  #goalLabel b{font-size:8px;color:#fff2d2;font-variant-numeric:tabular-nums;}
+  #goalMeter{height:5px;background:rgba(255,255,255,.16);border-radius:9px;overflow:hidden;}#goalFill{height:100%;width:0;background:linear-gradient(90deg,#d18a2c,#ffe28a);transition:width .25s ease;border-radius:9px;}
+  #comboBanner{position:fixed;z-index:15;left:50%;top:24%;transform:translate(-50%,-10px) scale(.8);opacity:0;pointer-events:none;padding:9px 22px;border:2px solid #ffe08a;border-radius:16px;background:linear-gradient(180deg,rgba(94,48,12,.96),rgba(38,19,7,.96));color:#fff0b8;font:900 clamp(18px,4vw,30px) var(--serif);letter-spacing:1.5px;text-shadow:0 2px 10px #ff9e32,0 2px 2px #000;box-shadow:0 0 24px rgba(255,183,68,.55);transition:opacity .12s,transform .18s;}
+  #comboBanner.show{opacity:1;transform:translate(-50%,0) scale(1);}
+  .ad-btn{animation:goldPulse 2s ease-in-out infinite;border-color:#e6b94f;box-shadow:0 4px 0 #b47a22,0 0 0 1px rgba(255,220,125,.35),0 0 14px rgba(242,193,78,.30);}
+  @keyframes goldPulse{0%,100%{box-shadow:0 4px 0 #b47a22,0 0 0 1px rgba(255,220,125,.28),0 0 10px rgba(242,193,78,.22)}50%{box-shadow:0 4px 0 #b47a22,0 0 0 2px rgba(255,220,125,.7),0 0 19px rgba(242,193,78,.52)}}
+  .shop-board{width:min(900px,97vw);max-height:min(94vh,960px);padding:19px 18px 11px;}
+  .shop-body{padding:13px 5px 8px;gap:13px;}
+  .card{padding:16px 15px 13px;gap:9px 12px;}
+  .card-desc{font-size:12.5px}.buy{padding:10px 13px;font-size:14px;}
+  @media(max-width:520px){#progressHud{padding:6px 4px 5px}.evo-step{grid-template-columns:11px minmax(0,1fr);gap:3px;font-size:7px;min-height:14px}.evo-step .stone{width:9px;height:9px}#goalHud{margin-top:5px;padding:5px 3px}.shop-board{padding:17px 11px 9px}.shop-head{gap:9px}.shop-sub{font-size:11px}}
+
+
+  /* Visual polish: consistent geometry, readable type, restrained surfaces. */
+  .chip,.icon-btn,.panel,.shop-board,.shop-purse,.close-btn,.big-btn,.ad-btn,.stats>div{border-radius:12px;}
+  .chip,.icon-btn,.shop-purse{transform:none;}
+  .chip{font-family:var(--hand);font-size:14px;box-shadow:0 2px 7px rgba(0,0,0,.22);}
+  .icon-btn{box-shadow:0 2px 7px rgba(0,0,0,.22);}
+  .panel{transform:none;animation:fadeIn .2s ease;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);}
+  .panel::before,.shop-board .tape{display:none;}
+  .panel h1{letter-spacing:0;font-size:clamp(29px,7vw,39px);}
+  .sub{font-family:var(--hand);font-size:11px;letter-spacing:2px;margin:7px 0 15px;}
+  .hint{font-family:var(--hand);font-size:14px;line-height:1.65;}
+  .big-btn,.ad-btn{font-family:var(--hand);letter-spacing:.35px;}
+  .big-btn{box-shadow:0 3px 0 #8a5210,0 8px 16px rgba(180,110,30,.18);}
+  .ad-btn{animation:none;border-color:#c09a58;box-shadow:0 3px 0 #c99b55,0 6px 12px rgba(160,110,40,.12);}
+  .shop-board{animation:fadeIn .2s ease;border-radius:16px;}
+  .shop-title{letter-spacing:0;}
+  .shop-sub{font-family:var(--hand);}
+  .shop-purse{box-shadow:0 2px 6px rgba(90,60,30,.16);}
+  .close-btn{box-shadow:0 2px 6px rgba(90,60,30,.16);}
+  .stats>div{border-style:solid;border-width:1px;}
+
+
+  /* Responsive finishing pass */
+  html,body{min-height:100%;height:100%;height:100dvh;overscroll-behavior:none;}
+  canvas{touch-action:none;}
+  button{touch-action:manipulation;}
+  .overlay,.shop-wrap{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));}
+  .panel{max-height:min(90dvh,760px);overscroll-behavior:contain;}
+  .shop-board{max-height:calc(100dvh - 24px);min-height:0;}
+  .shop-body{min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+  .chip,.icon-btn,.big-btn,.ad-btn,.buy,.close-btn{min-height:44px;}
+  :focus-visible{outline:3px solid #f2c14e;outline-offset:3px;}
+  @media (max-width:700px){
+    #hud{padding:calc(8px + env(safe-area-inset-top)) 9px 0;gap:6px;}
+    .hud-side{gap:6px;min-width:0;}
+    .chip{padding:6px 9px;font-size:clamp(11px,3vw,14px);gap:5px;white-space:nowrap;}
+    .chip .ico{font-size:15px;}
+    .icon-btn{width:42px;height:42px;min-width:42px;}
+    #progressHud{width:76px;padding:6px 5px;top:72px;}
+    #progressHud .evo-step{font-size:8px;min-height:17px;gap:4px;}
+    #progressHud .evo-step .stone{width:10px;height:10px;}
+    #goalHud{padding:6px 5px;}
+    #goalLabel{font-size:8px;}
+    #goalLabel b{font-size:9px;}
+    .shop-wrap{padding:8px;}
+    .shop-board{width:100%;max-height:calc(100dvh - 16px);padding:16px 12px 10px;}
+    .shop-head{gap:8px;padding-bottom:10px;}
+    .shop-title{font-size:21px;}
+    .shop-sub{font-size:11px;}
+    .shop-purse{font-size:17px;padding:5px 9px;}
+    .shop-body{padding:12px 3px 8px;gap:12px;}
+    .card{padding:14px 12px 12px;grid-template-columns:46px minmax(0,1fr);gap:9px 11px;}
+    .card-icon{width:46px;height:46px;font-size:29px;}
+    .card-name{font-size:17px;}
+    .card-desc{font-size:12px;line-height:1.4;}
+    .buy{min-height:42px;}
+    .shop-foot{font-size:11px;line-height:1.35;}
+    .panel{width:min(410px,100%);padding:25px 18px 20px;}
+  }
+  @media (max-width:380px){
+    #hud{padding-left:6px;padding-right:6px;}
+    .chip{padding:5px 7px;font-size:11px;}
+    .icon-btn{width:38px;height:38px;min-width:38px;}
+    #progressHud{width:68px;}
+    #progressHud .evo-step{font-size:7px;}
+    .shop-board{padding-left:9px;padding-right:9px;}
+    .shop-purse{font-size:15px;}
+  }
+  @media (max-height:620px) and (orientation:landscape){
+    #hud{padding-top:5px;}
+    #progressHud{top:56px;transform:scale(.86);transform-origin:top left;}
+    .shop-board{max-height:calc(100dvh - 12px);padding-top:10px;padding-bottom:7px;}
+    .shop-body{padding-top:8px;gap:8px;}
+    .card{padding:10px 12px;}
+    .panel{max-height:calc(100dvh - 16px);padding:17px 18px;}
+    .panel h1{font-size:27px;}
+    .sub{margin:4px 0 8px;}
+    .hint{margin-bottom:10px;line-height:1.45;}
+    .stats{margin:9px 0 11px;}
+  }
+  @media (min-width:1100px){
+    #hud{padding:14px 18px;}
+    .chip{font-size:15px;padding:7px 14px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important;}
+  }
+
+
+  /* Art direction: a quieter, hand-finished mining journal.
+     Fewer effects, consistent geometry and a small, deliberate palette. */
+  :root{
+    --paper:#f2e8d4;
+    --paper-2:#e8dcc3;
+    --ink:#33271b;
+    --ink-soft:#6d5b45;
+    --brown:#68451f;
+    --amber:#bd812f;
+    --amber-d:#87591f;
+    --gold:#d7ad5a;
+    --line:#b9a17b;
+    --hand:Arial,Helvetica,sans-serif;
+    --serif:Georgia,"Times New Roman",serif;
+  }
+  body::after{display:none;}
+  .chip{
+    background:#eee2ca;border:1px solid #a99069;color:#46351f;
+    border-radius:7px;padding:7px 10px;box-shadow:0 2px 5px #0003;
+    font:600 13px Arial,Helvetica,sans-serif;letter-spacing:0;
+  }
+  .chip .ico{font-size:15px;}
+  .icon-btn,.close-btn{
+    background:#eee2ca;border:1px solid #a99069;color:#46351f;
+    border-radius:7px;box-shadow:0 2px 5px #0003;transform:none;
+  }
+  .icon-btn:hover,.close-btn:hover{filter:brightness(1.04);}
+  .icon-btn:active,.close-btn:active{transform:translateY(1px);box-shadow:0 1px 2px #0003;}
+  .overlay{background:rgba(15,11,7,.82);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}
+  .panel{
+    background:#f1e7d2;border:1px solid #9c8057;border-radius:9px;
+    box-shadow:0 14px 38px #0008;transform:none;
+  }
+  .panel h1,.panel h1.red{
+    color:#75471d;text-shadow:none;letter-spacing:-.4px;
+    font-family:Georgia,"Times New Roman",serif;
+  }
+  .panel h1::after{display:none;}
+  .sub{font:600 10px Arial,Helvetica,sans-serif;letter-spacing:1.5px;color:#8a7556;}
+  .hint{font:14px/1.6 Arial,Helvetica,sans-serif;color:#574832;}
+  .tiny{font:12px/1.45 Arial,Helvetica,sans-serif;color:#786548;}
+  .big-btn{
+    background:#bd812f;border:1px solid #8d5e24;border-radius:7px;
+    color:#21170c;box-shadow:0 2px 0 #75491b;
+    font:700 15px Arial,Helvetica,sans-serif;letter-spacing:.1px;
+  }
+  .big-btn:hover{filter:brightness(1.04);}
+  .big-btn:active{transform:translateY(2px);box-shadow:none;}
+  .ad-btn{
+    background:#e9dec7;border:1px solid #b69b6f;border-radius:7px;
+    color:#68491f;box-shadow:0 1px 3px #6b4b241c;
+    font:600 13px Arial,Helvetica,sans-serif;letter-spacing:0;
+  }
+  .stats>div{background:#e9dec8;border:1px solid #c5b18e;border-radius:7px;}
+  .stats span{font:600 10px Arial,Helvetica,sans-serif;letter-spacing:.8px;color:#887354;}
+  .stats b{font:700 20px Georgia,"Times New Roman",serif;color:#68451f;}
+  .shop-wrap{padding:12px;}
+  .shop-backdrop{background:rgba(13,10,7,.78);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}
+  .shop-board{
+    background:#eee3cd;border:1px solid #9d8158;border-radius:10px;
+    box-shadow:0 18px 48px #0009;animation:fadeIn .16s ease;
+  }
+  .shop-head{border-bottom:1px solid #c8b48f;}
+  .shop-title{font:700 25px Georgia,"Times New Roman",serif;color:#67431f;}
+  .shop-sub{font:12px Arial,Helvetica,sans-serif;color:#7c684b;}
+  .shop-purse{
+    background:#e3d5b8;border:1px solid #b39a70;border-radius:7px;
+    color:#5f411e;box-shadow:none;font:700 17px Arial,Helvetica,sans-serif;
+  }
+  .card,.card:nth-child(odd),.card:nth-child(even){
+    background:#f5ecd9;border:1px solid #c8b48e;border-radius:8px;
+    box-shadow:0 1px 2px #4d351411;transform:none;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .card:hover{transform:none;box-shadow:0 2px 5px #4d35141c;border-color:#a98b5b;}
+  .card::before{display:none;}
+  .card-icon{background:#e9dec8;border:1px solid #d0bd99;border-radius:7px;}
+  .card-name{font:700 17px Georgia,"Times New Roman",serif;color:#60401e;}
+  .card-lvl{background:#e9dec8;border:1px solid #c8b48e;border-radius:4px;color:#705633;font:600 11px Arial,Helvetica,sans-serif;}
+  .card-desc{font:13px/1.45 Arial,Helvetica,sans-serif;color:#66543d;}
+  .card-meter{height:6px;background:#ddd0b5;border:0;border-radius:3px;}
+  .card-meter i{background:#b77a2c;border-radius:3px;}
+  .card-meta{font:11px Arial,Helvetica,sans-serif;color:#8a7657;}
+  .buy{
+    background:#bd812f;border:1px solid #946329;border-radius:6px;
+    color:#21170c;box-shadow:0 2px 0 #82531e;
+    font:700 13px Arial,Helvetica,sans-serif;
+  }
+  .buy:active:not(:disabled){transform:translateY(2px);box-shadow:none;}
+  .buy:disabled{background:#ded4c1;color:#8c806d;border-color:#c9bda7;}
+  .buy.maxed{background:#d7dfca;color:#3e5630;border-color:#a4b28e;}
+  .shop-foot{border-top:1px solid #c8b48f;font:11px/1.4 Arial,Helvetica,sans-serif;color:#7c684b;}
+  #progressHud{
+    background:rgba(25,20,15,.88);border:1px solid rgba(205,177,130,.35);
+    border-radius:6px;box-shadow:0 2px 8px #0004;
+  }
+  .evo-step{font:8px/1.1 Arial,Helvetica,sans-serif;text-shadow:none;border-radius:3px;}
+  .evo-step .stone{box-shadow:none;}
+  .evo-step.next{background:rgba(215,173,90,.15);color:#f0d39c;}
+  .evo-step.next .stone{box-shadow:0 0 4px var(--gem);}
+  #goalHud{border-radius:3px;border-top:1px solid rgba(215,173,90,.35);}
+  #goalLabel{font:600 7px/1.2 Arial,Helvetica,sans-serif;letter-spacing:.5px;}
+  #goalLabel b{font-size:8px;}
+  #goalMeter{height:4px;border-radius:2px;}
+  #goalFill{background:#c18a3c;border-radius:2px;}
+  #comboBanner{
+    border:1px solid rgba(235,203,143,.65);border-radius:7px;
+    background:rgba(34,25,16,.94);color:#f0d9a9;
+    font:700 clamp(16px,3vw,23px) Georgia,"Times New Roman",serif;
+    letter-spacing:.5px;text-shadow:none;box-shadow:0 3px 12px #0005;
+  }
+  .ad-btn{animation:none!important;}
+  @media(hover:hover){
+    .big-btn:hover,.buy:hover:not(:disabled){filter:brightness(1.06);}
+  }
+  @media(max-width:700px){
+    .shop-board{border-radius:8px;}
+    .shop-head{border-bottom-width:1px;}
+    .card{padding:13px 11px;}
+  }
+
+
+  /* Release polish: clear hierarchy, practical controls, and a consistent mine UI. */
+  #hud{align-items:center;}
+  .hud-side{gap:7px;}
+  .chip{min-height:38px;}
+  .icon-btn{font:700 17px/1 Arial,sans-serif;}
+  #hintToast{
+    position:fixed;z-index:8;left:50%;top:82px;transform:translateX(-50%);
+    max-width:calc(100vw - 28px);padding:8px 13px;border:1px solid #b99b6e;
+    border-radius:6px;background:rgba(25,20,15,.88);color:#f0e2c7;
+    font:600 12px/1.35 Arial,Helvetica,sans-serif;letter-spacing:.15px;
+    text-align:center;pointer-events:none;box-shadow:0 2px 8px #0005;
+    transition:opacity .25s ease;
+  }
+  #hintToast.dismissed{opacity:0;}
+  #pauseScreen .panel{width:min(390px,94vw);}
+  #pauseScreen .ad-btn{margin-top:12px;margin-bottom:0;}
+  .icon-btn:focus-visible,.big-btn:focus-visible,.ad-btn:focus-visible,.buy:focus-visible,.close-btn:focus-visible{
+    outline:3px solid #f3c86e;outline-offset:3px;
+  }
+  button{touch-action:manipulation;}
+  @media(max-width:700px){
+    #hintToast{top:76px;font-size:11px;padding:7px 10px;}
+    #hud{gap:5px;}
+    .hud-side{gap:5px;}
+  }
+
 </style>
 </head>
 <body>
@@ -380,11 +640,17 @@
     <button class="icon-btn" id="btnMute" title="Toggle sound" aria-label="Toggle sound">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.2 9.6h2.9c.3 0 .6-.1.8-.3l3.3-2.9c.4-.4 1-.1 1 .4v10.4c0 .5-.6.8-1 .4l-3.3-2.9a1.2 1.2 0 0 0-.8-.3H4.2a.9.9 0 0 1-.9-.9v-3a.9.9 0 0 1 .9-.9z" fill="currentColor" stroke="none"/><path d="M15.4 8.9c1 1 1.5 2 1.5 3.1s-.5 2.1-1.5 3.1"/><path d="M18 6.4c1.6 1.6 2.4 3.5 2.4 5.6s-.8 4-2.4 5.6"/></svg>
     </button>
+    <button class="icon-btn" id="btnPause" title="Pause game" aria-label="Pause game">Ⅱ</button>
     <button class="icon-btn" id="btnShop" title="Workshop" aria-label="Open workshop">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.6 8.4h8.8l1.9 7.6a2.2 2.2 0 0 1-2.1 2.7H7.8a2.2 2.2 0 0 1-2.1-2.7z" fill="currentColor" fill-opacity=".16"/><path d="M9.2 8.2c0-1.9 1.2-3.2 2.8-3.2s2.8 1.3 2.8 3.2"/><path d="M9.8 13.2l1.4 1.4 2.9-3"/></svg>
     </button>
   </div>
 </div>
+<div id="progressHud" aria-label="Gem evolution and milestone progress">
+  <div id="evolutionTrack"></div>
+  <div id="goalHud"><div id="goalLabel"><span>Milestone: Reach Tier 6 Gem</span><b id="goalCount">0 / 6</b></div><div id="goalMeter"><div id="goalFill"></div></div></div>
+</div>
+<div id="comboBanner" aria-live="polite">2x COMBO!</div>
 
 <!-- ===================== WORKSHOP ===================== -->
 <div id="shopWrap" class="shop-wrap hidden">
@@ -396,7 +662,7 @@
     <header class="shop-head">
       <div class="shop-head-main">
         <h2 class="shop-title">The Prospector&rsquo;s Workshop</h2>
-        <p class="shop-sub">nine little tools, each one a small step</p>
+        <p class="shop-sub">Spend coins to make every run count.</p>
       </div>
       <div class="shop-purse">
         <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="1em" height="1em"><circle cx="12" cy="12" r="9.1" fill="#f2c14e" stroke="#6b3d0c" stroke-width="1.5"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="#a86f16" stroke-width="1.1" stroke-dasharray="2.2 1.5"/><path d="M12 8.5v7M8.5 12h7" stroke="#7a4a10" stroke-width="1.3" stroke-linecap="round" opacity=".5"/><path d="M6.5 6.6C8 5 10 4.1 12.3 4.1" fill="none" stroke="#fff6d8" stroke-width="1.3" stroke-linecap="round" opacity=".85"/></svg></span>
@@ -411,26 +677,24 @@
 
     <footer class="shop-foot">
       <span aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#a4825a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s7-4.4 7-10a4.2 4.2 0 0 0-7-3.1 4.2 4.2 0 0 0-7 3.1c0 5.6 7 10 7 10z"/></svg></span>
-      Every level is a small step. Keep digging.
+      <span>Every level is a small step. Keep digging.</span>
+      <div class="shop-boosts">
+        <button class="ad-btn" id="btnDynamite" type="button">💣 Dynamite</button>
+        <button class="ad-btn" id="btnShake" type="button">〰 Shake</button>
+      </div>
     </footer>
   </section>
 </div>
 
-<!-- ===================== START ===================== -->
-<div id="startScreen" class="overlay">
+<!-- Gameplay starts immediately; controls are explained in the shaft. -->
+<div id="hintToast" role="status">Move to aim · release to drop · match gems to merge</div>
+<div id="pauseScreen" class="overlay hidden">
   <div class="panel">
-    <h1>Gem Drop</h1>
-    <div class="sub">Idle Miner</div>
-    <p class="hint">
-      Drag to aim, let go to drop.<br/>
-      Two of a kind fuse into one better stone.<br/>
-      Keep the pile below the rope &mdash; too long above it and the shaft comes down.
-    </p>
-    <button id="btnPlay" class="big-btn">
-      <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M8 5.8l10.5 6.2L8 18.2z" fill="currentColor"/></svg>
-      START DIGGING
-    </button>
-    <div class="tiny">Best run so far: <b id="startBest">0</b> coins</div>
+    <h1>Taking a Breather</h1>
+    <div class="sub">THE MINE CAN WAIT</div>
+    <p class="hint">Your stack is safe while the game is paused.</p>
+    <button id="btnResume" class="big-btn">RESUME DIGGING</button>
+    <button id="btnPauseRestart" class="ad-btn">START A FRESH RUN</button>
   </div>
 </div>
 
@@ -444,11 +708,11 @@
     </div>
     <button id="btnRevive" class="ad-btn">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="5.6" width="17.6" height="12.8" rx="2.4"/><path d="M10.2 9.6l4.8 2.4-4.8 2.4z" fill="currentColor" stroke="none"/></svg>
-      DIG YOURSELF OUT &mdash; CLEAR TOP 40%
+      ▶ WATCH VIDEO TO REVIVE
     </button>
     <button id="btnDouble" class="ad-btn">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="5.6" width="17.6" height="12.8" rx="2.4"/><path d="M10.2 9.6l4.8 2.4-4.8 2.4z" fill="currentColor" stroke="none"/></svg>
-      DOUBLE THIS RUN&rsquo;S COINS
+      ▶ WATCH VIDEO TO DOUBLE COINS
     </button>
     <button id="btnRestart" class="big-btn" style="margin-top:6px;">
       <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 3.6v5.2h-5.2"/></svg>
@@ -457,14 +721,7 @@
   </div>
 </div>
 
-<!-- ===================== MOCK AD ===================== -->
-<div id="adOverlay" class="overlay hidden">
-  <div class="panel ad-panel">
-    <div class="ad-tag">ADVERTISEMENT</div>
-    <div id="adCount" class="ad-count">3</div>
-    <div class="ad-sub">your reward is on the way&hellip;</div>
-  </div>
-</div>
+
 
 <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
 <script>
@@ -510,25 +767,25 @@ function fmt(n){
    1. WORLD CONSTANTS  — wider shaft, taller play area
    ========================================================== */
 const W = 520, H = 860;
-const WALL_L = 60, WALL_R = 460, WALL_T = 26;
+const WALL_L = 120, WALL_R = 440, WALL_T = 26; // 20% narrower shaft
 const FLOOR_Y = 828;
 const DROP_Y  = 108;
-const DANGER_Y = 208;
+const DANGER_Y = 236; // less headroom: the stack becomes dangerous sooner
 
 /* ==========================================================
    2. GEM TIERS
    ========================================================== */
 const TIERS = [
-  { r: 14, c1:'#fdf6e9', c2:'#dcc9ad', c3:'#8c755a', glow:'#f3ddb6' },
-  { r: 19, c1:'#e6f2d6', c2:'#94bb7c', c3:'#456138', glow:'#bfe0a2' },
-  { r: 25, c1:'#d9f2ef', c2:'#74c0c2', c3:'#2f6670', glow:'#a4e4e0' },
-  { r: 32, c1:'#ffe4e6', c2:'#e39aa8', c3:'#8c4b5c', glow:'#ffc3cd' },
-  { r: 40, c1:'#ffddcc', c2:'#c97a5a', c3:'#6b3420', glow:'#ffa98a' },
-  { r: 49, c1:'#f1efff', c2:'#aaa8cf', c3:'#5a5880', glow:'#d8d3ff' },
-  { r: 59, c1:'#ffd4c6', c2:'#c9513e', c3:'#6b1a14', glow:'#ff8d6c' },
-  { r: 70, c1:'#ffe0b3', c2:'#ef952e', c3:'#8a4a06', glow:'#ffb55e' },
-  { r: 82, c1:'#dcf2d8', c2:'#5aa96c', c3:'#1f5a34', glow:'#93e29e' },
-  { r: 95, c1:'#fff5d8', c2:'#ffc46c', c3:'#a05a12', glow:'#ffd992' }
+  { r: 16, c1:'#fdf6e9', c2:'#dcc9ad', c3:'#8c755a', glow:'#f3ddb6' },
+  { r: 21.3, c1:'#e6f2d6', c2:'#94bb7c', c3:'#456138', glow:'#bfe0a2' },
+  { r: 28, c1:'#d9f2ef', c2:'#74c0c2', c3:'#2f6670', glow:'#a4e4e0' },
+  { r: 35.8, c1:'#ffe4e6', c2:'#e39aa8', c3:'#8c4b5c', glow:'#ffc3cd' },
+  { r: 44.8, c1:'#ffddcc', c2:'#c97a5a', c3:'#6b3420', glow:'#ffa98a' },
+  { r: 54.9, c1:'#f1efff', c2:'#aaa8cf', c3:'#5a5880', glow:'#d8d3ff' },
+  { r: 66.1, c1:'#ffd4c6', c2:'#c9513e', c3:'#6b1a14', glow:'#ff8d6c' },
+  { r: 78.4, c1:'#ffe0b3', c2:'#ef952e', c3:'#8a4a06', glow:'#ffb55e' },
+  { r: 91.8, c1:'#dcf2d8', c2:'#5aa96c', c3:'#1f5a34', glow:'#93e29e' },
+  { r: 106.4, c1:'#fff5d8', c2:'#ffc46c', c3:'#a05a12', glow:'#ffd992' }
 ];
 TIERS.forEach((t,i) => { t.coin = Math.max(1, Math.round(1.6 * Math.pow(1.7, i))); });
 
@@ -628,13 +885,25 @@ const ICO = {
    4. CANVAS / VIEW
    ========================================================== */
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const view = { scale: 1, ox: 0, oy: 0, dpr: 1 };
 let bgCanvas = null;
 
+function positionProgressHud(){
+  const rail = document.getElementById('progressHud');
+  if (!rail) return;
+  const scale = view.scale / view.dpr;
+  rail.style.left = ((view.ox + 5 * view.scale) / view.dpr) + 'px';
+  rail.style.width = Math.max(50, 96 * scale) + 'px';
+  rail.style.top = Math.max(78, (view.oy + 74 * view.scale) / view.dpr) + 'px';
+}
+
 function resize(){
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cw = window.innerWidth, ch = window.innerHeight;
+  const mobile = window.matchMedia('(max-width: 700px), (pointer: coarse)').matches;
+  const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 2);
+  const viewport = window.visualViewport;
+  const cw = Math.max(1, Math.round(viewport ? viewport.width : window.innerWidth));
+  const ch = Math.max(1, Math.round(viewport ? viewport.height : window.innerHeight));
   canvas.width  = Math.max(1, Math.floor(cw * dpr));
   canvas.height = Math.max(1, Math.floor(ch * dpr));
   canvas.style.width  = cw + 'px';
@@ -646,10 +915,12 @@ function resize(){
   view.ox = (canvas.width  - W * view.scale) / 2;
   view.oy = (canvas.height - H * view.scale) / 2;
 
+  positionProgressHud();
   buildBackground();
 }
-window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+window.addEventListener('resize', resize, { passive: true });
+window.addEventListener('orientationchange', () => setTimeout(resize, 160), { passive: true });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize, { passive: true });
 
 function toWorld(clientX, clientY){
   const rect = canvas.getBoundingClientRect();
@@ -750,85 +1021,125 @@ const Sfx = {
    ========================================================== */
 let cgSDK = null;
 let adBusy = false;
+let desiredGameplay = false;
+let rewardedUsedThisRun = false;
+let rewardCooldownUntil = 0;
+const REWARD_COOLDOWN_MS = 5 * 60 * 1000;
 
 (function loadCrazySDK(){
   try {
     const s = document.createElement('script');
     s.src = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
     s.async = true;
-    s.onload = function(){
+    s.onload = async function(){
       try {
         if (window.CrazyGames && window.CrazyGames.SDK) {
-          Promise.resolve(window.CrazyGames.SDK.init())
-            .then(function(){ cgSDK = window.CrazyGames.SDK; })
-            .catch(function(err){ console.warn('[CG] init failed', err); });
+          await window.CrazyGames.SDK.init();
+          cgSDK = window.CrazyGames.SDK;
+          syncCrazyGameplay();
+          refreshRewardButtons();
         }
-      } catch(e){ console.warn('[CG] init threw', e); }
+      } catch(err){ console.warn('[CG] SDK init failed', err); }
     };
-    s.onerror = function(){};
+    s.onerror = function(){ console.warn('[CG] SDK unavailable; running without platform features.'); };
     document.head.appendChild(s);
-  } catch(e){ console.warn('[CG] load threw', e); }
+  } catch(e){ console.warn('[CG] SDK load failed', e); }
 })();
 
-function cgGameplayStart(){
-  try { if (cgSDK && cgSDK.game) cgSDK.game.gameplayStart(); } catch(e){}
+function syncCrazyGameplay(){
+  if (!cgSDK || !cgSDK.game) return;
+  try {
+    if (desiredGameplay) cgSDK.game.gameplayStart();
+    else cgSDK.game.gameplayStop();
+  } catch(e){ console.warn('[CG] gameplay event failed', e); }
 }
-function cgGameplayStop(){
-  try { if (cgSDK && cgSDK.game) cgSDK.game.gameplayStop(); } catch(e){}
-}
+function cgGameplayStart(){ desiredGameplay = true; syncCrazyGameplay(); }
+function cgGameplayStop(){ desiredGameplay = false; syncCrazyGameplay(); }
 function cgHappyTime(){
   try { if (cgSDK && cgSDK.game && cgSDK.game.happytime) cgSDK.game.happytime(); } catch(e){}
 }
 
-const adOverlay = document.getElementById('adOverlay');
-const adCountEl = document.getElementById('adCount');
+function showToast(message, duration){
+  const el = document.getElementById('hintToast');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('dismissed');
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(function(){ el.classList.add('dismissed'); }, duration || 2600);
+}
 
-function mockAd(seconds, cb){
-  let t = seconds;
-  adCountEl.textContent = t;
-  adOverlay.classList.remove('hidden');
-  const iv = setInterval(function(){
-    t--;
-    adCountEl.textContent = Math.max(0, t);
-    if (t <= 0){
-      clearInterval(iv);
-      adOverlay.classList.add('hidden');
-      cb();
-    }
-  }, 1000);
+function refreshRewardButtons(){
+  const reviveBtn = document.getElementById('btnRevive');
+  const doubleBtn = document.getElementById('btnDouble');
+  const cooling = Date.now() < rewardCooldownUntil;
+  const unavailable = rewardedUsedThisRun || cooling || !cgSDK || !cgSDK.ad;
+  reviveBtn.disabled = unavailable;
+  doubleBtn.disabled = unavailable;
+  if (rewardedUsedThisRun){
+    reviveBtn.textContent = 'REWARDED VIDEO ALREADY USED THIS RUN';
+    doubleBtn.textContent = 'REWARDED VIDEO ALREADY USED THIS RUN';
+  } else if (cooling){
+    const mins = Math.max(1, Math.ceil((rewardCooldownUntil - Date.now()) / 60000));
+    reviveBtn.textContent = 'REVIVE VIDEO · AVAILABLE IN ' + mins + ' MIN';
+    doubleBtn.textContent = 'DOUBLE VIDEO · AVAILABLE IN ' + mins + ' MIN';
+  } else if (!cgSDK || !cgSDK.ad){
+    reviveBtn.textContent = 'REVIVE VIDEO UNAVAILABLE';
+    doubleBtn.textContent = 'DOUBLE VIDEO UNAVAILABLE';
+  } else {
+    reviveBtn.textContent = '▶ WATCH VIDEO TO REVIVE';
+    doubleBtn.textContent = '▶ WATCH VIDEO TO DOUBLE COINS';
+  }
 }
 
 function showRewardedAd(onReward){
-  if (adBusy) return;
+  if (adBusy || rewardedUsedThisRun || Date.now() < rewardCooldownUntil) return;
+  if (!cgSDK || !cgSDK.ad || typeof cgSDK.ad.requestAd !== 'function'){
+    showToast('Reward videos are unavailable right now. You can still start a new run.');
+    refreshRewardButtons();
+    return;
+  }
   adBusy = true;
-
-  const finish = function(){
+  const wasMuted = Sfx.muted;
+  let settled = false;
+  const restore = function(){
     adBusy = false;
-    try { onReward(); } catch(e){ console.warn(e); }
+    paused = false;
+    Sfx.muted = wasMuted;
+    if (Sfx.master) Sfx.master.gain.setTargetAtTime(wasMuted ? 0 : 0.28, Sfx.ctx.currentTime, 0.04);
+    if (gameState === 'playing') cgGameplayStart();
+    refreshRewardButtons();
   };
-
-  let handled = false;
   try {
-    if (cgSDK && cgSDK.ad && cgSDK.ad.requestAd){
-      cgSDK.ad.requestAd('rewarded', {
-        adStarted: function(){},
-        adFinished: function(){ if (!handled) { handled = true; finish(); } },
-        adError:    function(){ if (!handled) { handled = true; adBusy = false; mockAd(3, onReward); } }
-      });
-      setTimeout(function(){ if (!handled) { handled = true; adBusy = false; mockAd(3, onReward); } }, 12000);
-      return;
-    }
-  } catch(e){ console.warn('[CG] ad threw', e); }
-
-  if (!handled){ handled = true; adBusy = false; mockAd(3, onReward); }
-}
-
-function showMidgameAd(){
-  try {
-    if (cgSDK && cgSDK.ad && cgSDK.ad.requestAd){
-      cgSDK.ad.requestAd('midgame', { adStarted:function(){}, adFinished:function(){}, adError:function(){} });
-    }
-  } catch(e){}
+    cgSDK.ad.requestAd('rewarded', {
+      adStarted: function(){
+        paused = true;
+        Sfx.muted = true;
+        if (Sfx.master && Sfx.ctx) Sfx.master.gain.setTargetAtTime(0, Sfx.ctx.currentTime, 0.025);
+        cgGameplayStop();
+      },
+      adFinished: function(){
+        if (settled) return;
+        settled = true;
+        rewardedUsedThisRun = true;
+        rewardCooldownUntil = Date.now() + REWARD_COOLDOWN_MS;
+        try { localStorage.setItem('gemdrop_reward_cooldown', String(rewardCooldownUntil)); } catch(e){}
+        restore();
+        try { onReward(); } catch(e){ console.warn('[reward] grant failed', e); }
+        showToast('Reward received. Good luck down the mine!', 3000);
+      },
+      adError: function(error){
+        if (settled) return;
+        settled = true;
+        restore();
+        console.info('[CG] Reward video unavailable', error || '');
+        showToast('No video is available. No reward was used — try again later.');
+      }
+    });
+  } catch(e){
+    if (!settled){ settled = true; restore(); }
+    console.warn('[CG] rewarded ad request failed', e);
+    showToast('Could not start a reward video. Try again later.');
+  }
 }
 
 /* ==========================================================
@@ -854,7 +1165,7 @@ function loadSave(){
       saveData.best  = Math.max(0, Math.floor(d.best)  || 0);
       if (d.up && typeof d.up === 'object'){
         for (const k in saveData.up){
-          saveData.up[k] = Math.max(0, Math.floor(d.up[k]) || 0);
+          saveData.up[k] = clamp(Math.floor(d.up[k]) || 0, 0, (UPGRADES.find(function(u){return u.key===k;}) || {max:0}).max);
         }
       }
     }
@@ -883,7 +1194,7 @@ const UPGRADES = [
         ? 'Your drops are never worse than a Quartz Chip.'
         : 'Drops start no lower than Tier ' + (1 + l) + '.';
     },
-    cost: function(l){ return [600, 4000, 22000][l] || 0; }
+    cost: function(l){ return [25, 180, 900][l] || 0; }
   },
   {
     key: 'gemValue', name: 'Keen Eye', icon: 'coin', max: 25,
@@ -892,7 +1203,7 @@ const UPGRADES = [
         ? 'Fused stones fetch a fair price.'
         : 'Fused stones fetch ' + (l * 4) + '% more coin.';
     },
-    cost: function(l){ return Math.round(60 * Math.pow(1.26, l)); }
+    cost: function(l){ return Math.round(15 * Math.pow(1.26, l)); }
   },
   {
     key: 'autoMiner', name: 'Hired Hand', icon: 'pickaxe', max: 20,
@@ -901,7 +1212,7 @@ const UPGRADES = [
         ? 'Nobody is helping you down there yet.'
         : 'A hand tosses a spare stone every ' + (24 - l * 0.6).toFixed(1) + 's.';
     },
-    cost: function(l){ return Math.round(250 * Math.pow(1.24, l)); }
+    cost: function(l){ return Math.round(20 * Math.pow(1.24, l)); }
   },
   {
     key: 'comboFever', name: 'Steady Rhythm', icon: 'flame', max: 25,
@@ -915,14 +1226,14 @@ const UPGRADES = [
   {
     key: 'dangerTime', name: 'Rope Warden', icon: 'rope', max: 10,
     desc: function(l){
-      return 'The red rope gives you ' + (3 + 0.3 * l).toFixed(1) + 's to recover.';
+      return 'The red rope gives you ' + (1.8 + 0.20 * l).toFixed(2) + 's to recover.';
     },
     cost: function(l){ return Math.round(900 * Math.pow(1.55, l)); }
   },
   {
     key: 'dropCd', name: 'Cool Hands', icon: 'stopwatch', max: 10,
     desc: function(l){
-      return 'Drop cooldown: ' + Math.max(0.22, 0.5 - 0.02 * l).toFixed(2) + 's.';
+      return 'Drop cooldown: ' + Math.max(0.42, 0.76 - 0.025 * l).toFixed(2) + 's.';
     },
     cost: function(l){ return Math.round(220 * Math.pow(1.38, l)); }
   },
@@ -987,10 +1298,12 @@ let runCoins = 0;
 let bestTierThisRun = 0;
 let restarts = 0;
 let doubleUsed = false;
+let pointerWorldX = W / 2, pointerWorldY = DROP_Y, comboBannerTimer = 0;
+let milestoneTarget = 6, milestonesCompleted = 0, milestoneProgressTier = 0;
 
 /* Upgrade helpers */
-function getDropCooldown(){ return Math.max(0.22, 0.5 - 0.02 * saveData.up.dropCd); }
-function getDangerWindow(){ return 3 + 0.3 * saveData.up.dangerTime; }
+function getDropCooldown(){ return Math.max(0.42, 0.76 - 0.025 * saveData.up.dropCd); }
+function getDangerWindow(){ return 1.8 + 0.20 * saveData.up.dangerTime; }
 
 /* ==========================================================
    10. MATTER SETUP
@@ -998,7 +1311,7 @@ function getDangerWindow(){ return 3 + 0.3 * saveData.up.dangerTime; }
 function setupPhysics(){
   engine = Engine.create();
   world = engine.world;
-  engine.gravity.y = 1.32;
+  engine.gravity.y = 1.62;
   engine.positionIterations = 8;
   engine.velocityIterations = 6;
 
@@ -1085,6 +1398,29 @@ function rollCrit(coins, mx, my){
   return coins;
 }
 
+// Repeatable milestone ladder. Each completed target immediately rolls
+// forward; after Tier 10 the ladder loops back to Tier 6 with a larger reward.
+function recordTierProgress(tier, x, y){
+  bestTierThisRun = Math.max(bestTierThisRun, tier);
+  milestoneProgressTier = Math.max(milestoneProgressTier, tier);
+
+  // Complete at most one milestone per merge. This prevents a single high-tier
+  // merge from instantly clearing several newly-issued objectives.
+  if (tier >= milestoneTarget){
+    const reward = 250 + Math.floor(milestonesCompleted / 5) * 100;
+    milestonesCompleted++;
+    milestoneTarget = 6 + (milestonesCompleted % 5);
+    milestoneProgressTier = 0;
+    saveData.coins += reward;
+    runCoins += reward;
+    addText('+' + reward + ' MILESTONE!', x, y - 72, '#ffe08a', 19);
+    Sfx.cashRegister();
+    updateHud();
+    save();
+  }
+  updateProgressHud();
+}
+
 function doMerge(a, b){
   const tier = a.tier;
   const mx = (a.body.position.x + b.body.position.x) * 0.5;
@@ -1094,11 +1430,18 @@ function doMerge(a, b){
   removeGem(b);
 
   const srcT = TIERS[tier - 1];
-  burst(mx, my, srcT.glow, 12 + tier * 3, 2 + tier * 0.55);
+  burst(mx, my, srcT.glow, 24 + tier * 6, 3 + tier * 0.75);
+  particles.push({kind:"ring",x:mx,y:my,life:0.52,max:0.52,size:8,color:srcT.glow});
   addShake(1.4 + tier * 1.0);
 
   if (comboTimer > 0) combo = Math.min(combo + 1, 20); else combo = 1;
-  comboTimer = 1.7;
+  comboTimer = 1.5;
+  if (combo >= 2){
+    const banner = document.getElementById('comboBanner');
+    banner.textContent = combo >= 3 ? (combo + 'x FEVER!') : '2x COMBO!';
+    banner.classList.add('show');
+    comboBannerTimer = 0.95;
+  }
 
   const newTier = tier + 1;
 
@@ -1112,7 +1455,7 @@ function doMerge(a, b){
     bigCoins = rollCrit(bigCoins, mx, my);
     award(bigCoins, mx, my, '#ffcf7a');
     addText('SUNBURST!', mx, my - 46, '#fff0c8', 22);
-    if (bestTierThisRun < TIERS.length) bestTierThisRun = TIERS.length;
+    recordTierProgress(TIERS.length, mx, my);
     return;
   }
 
@@ -1153,7 +1496,7 @@ function doMerge(a, b){
   Sfx.mergeChime(newTier);
   if (newTier >= 6) freeze = Math.max(freeze, 0.018 + newTier * 0.007);
   if (newTier >= 8) cgHappyTime();
-  if (newTier > bestTierThisRun) bestTierThisRun = newTier;
+  recordTierProgress(newTier, mx, my);
 }
 
 function award(n, x, y, color){
@@ -1169,6 +1512,7 @@ function award(n, x, y, color){
    12. PARTICLES / FLOATING TEXT
    ========================================================== */
 function burst(x, y, color, count, speed){
+  if (particles.length > 520) particles.splice(0, particles.length - 360);
   for (let i = 0; i < count; i++){
     const a = Math.random() * Math.PI * 2;
     const s = speed * (0.35 + Math.random());
@@ -1215,6 +1559,7 @@ function explode(x, y){
 }
 
 function addText(txt, x, y, color, size){
+  if (texts.length > 80) texts.shift();
   texts.push({
     txt: txt, x: x, y: y,
     vy: -58, life: 1.15, max: 1.15,
@@ -1480,8 +1825,8 @@ function buildBackground(){
 function randTier(){
   const base = 1 + saveData.up.startTier;
   const roll = Math.random();
-  if (roll < 0.60) return clamp(base, 1, TIERS.length);
-  if (roll < 0.87) return clamp(base + 1, 1, TIERS.length);
+  if (roll < 0.68) return clamp(base, 1, TIERS.length);
+  if (roll < 0.94) return clamp(base + 1, 1, TIERS.length);
   return clamp(base + 2, 1, TIERS.length);
 }
 
@@ -1499,13 +1844,20 @@ function startRun(){
   combo = 0;
   comboTimer = 0;
   dangerTimer = 0;
-  graceTimer = 0.8;
+  graceTimer = 0.55;
   freeze = 0;
   shake = 0;
   acc = 0;
   idleAcc = 0;
   bestTierThisRun = 0;
+  milestoneTarget = 6;
+  milestonesCompleted = 0;
+  milestoneProgressTier = 0;
+  updateProgressHud();
+  comboBannerTimer = 0; document.getElementById('comboBanner').classList.remove('show');
   doubleUsed = false;
+  rewardedUsedThisRun = false;
+  try { rewardCooldownUntil = Math.max(rewardCooldownUntil, Number(localStorage.getItem('gemdrop_reward_cooldown')) || 0); } catch(e){}
   dropX = W / 2;
 
   dropCdMax = getDropCooldown();
@@ -1541,8 +1893,7 @@ function endRun(){
   document.getElementById('ovTier').textContent  =
     bestTierThisRun > 0 ? ('Tier ' + bestTierThisRun) : '\u2014';
 
-  document.getElementById('btnRevive').disabled = false;
-  document.getElementById('btnDouble').disabled = false;
+  refreshRewardButtons();
 
   document.getElementById('overScreen').classList.remove('hidden');
   updateHud();
@@ -1572,6 +1923,7 @@ function revive(){
    ========================================================== */
 function updateDropX(clientX, clientY){
   const w = toWorld(clientX, clientY);
+  pointerWorldX = w.x; pointerWorldY = w.y;
   const r = TIERS[currentTier - 1].r;
   dropX = clamp(w.x, WALL_L + r + 3, WALL_R - r - 3);
 }
@@ -1617,14 +1969,17 @@ function autoDrop(){
 canvas.addEventListener('pointerdown', function(e){
   if (gameState !== 'playing' || paused) return;
   aiming = true;
+  if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch(err){} }
   Sfx.init();
+  Sfx.resume();
+  document.getElementById('hintToast').classList.add('dismissed');
   updateDropX(e.clientX, e.clientY);
   e.preventDefault();
 }, { passive: false });
 
 window.addEventListener('pointermove', function(e){
   if (gameState !== 'playing' || paused) return;
-  updateDropX(e.clientX, e.clientY);
+  if (e.pointerType === 'mouse' || aiming) updateDropX(e.clientX, e.clientY);
 }, { passive: true });
 
 window.addEventListener('pointerup', function(e){
@@ -1689,7 +2044,7 @@ function updateGame(dt){
     for (let i = 0; i < gems.length; i++){
       const g = gems[i];
       const top = g.body.position.y - g.r;
-      if (top < DANGER_Y && g.age > 0.45 && g.body.speed < 2.0){
+      if (top < DANGER_Y && g.age > 0.35 && g.body.speed < 2.2){
         over = true;
         break;
       }
@@ -1707,6 +2062,7 @@ function updateGame(dt){
 }
 
 function updateFx(dt){
+  if (comboBannerTimer > 0){ comboBannerTimer = Math.max(0, comboBannerTimer - dt); if (comboBannerTimer === 0) document.getElementById('comboBanner').classList.remove('show'); }
   if (shake > 0) shake = Math.max(0, shake - dt * 78 * view.dpr);
 
   for (let i = particles.length - 1; i >= 0; i--){
@@ -1834,6 +2190,15 @@ function drawGemShape(x, y, r, tier, angle, sx, sy, alpha){
   ctx.fillStyle = 'rgba(255,250,238,0.36)';
   ctx.fill();
 
+  // A restrained specular facet gives each stone a mineral finish.
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.47, -r * 0.42);
+  ctx.lineTo(-r * 0.06, -r * 0.72);
+  ctx.lineTo(r * 0.20, -r * 0.49);
+  ctx.lineTo(-r * 0.20, -r * 0.28);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.13)';
+  ctx.fill();
   ctx.restore();
 }
 
@@ -2019,8 +2384,18 @@ function drawDropper(t){
   ctx.fill();
   ctx.restore();
 
-  const ghostAlpha = dropCd > 0 ? 0.32 : 0.94;
+  const ghostAlpha = dropCd > 0 ? 0.84 : 1;
   drawGemShape(x, DROP_Y + 4, r, currentTier, t * 0.55, 1, 1, ghostAlpha);
+  ctx.save();
+  ctx.globalAlpha = dropCd > 0 ? 0.55 : 0.85;
+  ctx.strokeStyle = TIERS[currentTier - 1].glow;
+  ctx.lineWidth = 1.8;
+  ctx.shadowColor = TIERS[currentTier - 1].glow;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(x, DROP_Y + 4, r + 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 
   if (dropCd > 0 && dropCdMax > 0){
     ctx.save();
@@ -2078,10 +2453,18 @@ function drawParticles(){
     const p = particles[i];
     const a = Math.max(0, p.life / p.max);
     ctx.globalAlpha = a;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2);
-    ctx.fill();
+    if (p.kind === 'ring'){
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = p.color; ctx.lineWidth = 2.5 * a + 0.5;
+      ctx.shadowColor = p.color; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size + (1-a)*62,0,Math.PI*2); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -2185,6 +2568,10 @@ function render(t){
    20. LOOP
    ========================================================== */
 let lastT = performance.now();
+document.addEventListener('visibilitychange', function(){
+  lastT = performance.now();
+  acc = 0;
+});
 
 function loop(now){
   requestAnimationFrame(loop);
@@ -2220,6 +2607,27 @@ function loop(now){
 /* ==========================================================
    21. HUD + SHOP UI
    ========================================================== */
+const TIER_NAMES = ['Quartz','Peridot','Aquamarine','Rose Quartz','Amber','Amethyst','Ruby','Topaz','Emerald','Diamond'];
+function buildProgressHud(){
+  const track=document.getElementById('evolutionTrack');
+  track.innerHTML=TIER_NAMES.map((name,i)=>'<div class="evo-step" id="evo-'+(i+1)+'" style="--gem:'+TIERS[i].glow+'"><span class="stone"></span>'+name+'</div>').join('');
+  updateProgressHud();
+}
+function updateProgressHud(){
+  const reached=Math.max(bestTierThisRun,0);
+  for(let i=1;i<=TIERS.length;i++){
+    const el=document.getElementById('evo-'+i); if(!el) continue;
+    el.classList.toggle('reached',i<=reached);
+    el.classList.toggle('next',i===Math.min(TIERS.length,reached+1));
+  }
+  const count=Math.min(milestoneTarget,milestoneProgressTier);
+  const countEl=document.getElementById('goalCount'); if(countEl) countEl.textContent=count+' / '+milestoneTarget;
+  const fill=document.getElementById('goalFill'); if(fill) fill.style.width=(count/milestoneTarget*100)+'%';
+  const label=document.querySelector('#goalLabel span');
+  const reward=250 + Math.floor(milestonesCompleted / 5) * 100;
+  if(label) label.textContent='Milestone '+(milestonesCompleted+1)+': Reach Tier '+milestoneTarget+' Gem (+'+reward+' coins)';
+}
+
 const coinValEl = document.getElementById('coinVal');
 const bestValEl = document.getElementById('bestVal');
 const shopCoinsEl = document.getElementById('shopCoins');
@@ -2231,6 +2639,7 @@ function updateHud(){
   coinValEl.textContent = fmt(saveData.coins);
   bestValEl.textContent = fmt(saveData.best);
   if (shopWrap && !shopWrap.classList.contains('hidden')) updateShop();
+  updateProgressHud();
 }
 
 function buildShop(){
@@ -2312,7 +2721,7 @@ function buyUpgrade(key){
 }
 
 function openShop(){
-  if (gameState === 'over') return;
+  if (gameState === 'over' || paused || adBusy) return;
   aiming = false;
   paused = true;
   cgGameplayStop();
@@ -2329,11 +2738,34 @@ function closeShop(){
   if (gameState === 'playing') cgGameplayStart();
 }
 
+function pauseGame(){
+  if (gameState !== 'playing' || paused || adBusy) return;
+  aiming = false;
+  paused = true;
+  cgGameplayStop();
+  document.getElementById('pauseScreen').classList.remove('hidden');
+  Sfx.click();
+}
+function resumeGame(){
+  document.getElementById('pauseScreen').classList.add('hidden');
+  if (gameState === 'playing'){
+    paused = false;
+    cgGameplayStart();
+  }
+  Sfx.click();
+}
+document.getElementById('btnPause').addEventListener('click', pauseGame);
+document.getElementById('btnResume').addEventListener('click', resumeGame);
+document.getElementById('btnPauseRestart').addEventListener('click', function(){
+  document.getElementById('pauseScreen').classList.add('hidden');
+  paused = false;
+  startRun();
+});
 document.getElementById('btnShop').addEventListener('click', openShop);
 document.getElementById('shopClose').addEventListener('click', closeShop);
 shopBackdrop.addEventListener('click', closeShop);
 window.addEventListener('keydown', function(e){
-  if (e.key === 'Escape') closeShop();
+  if (e.key === 'Escape'){ if (!shopWrap.classList.contains('hidden')) closeShop(); else if (document.getElementById('pauseScreen').classList.contains('hidden')) pauseGame(); else resumeGame(); }
 });
 
 const btnMute = document.getElementById('btnMute');
@@ -2344,25 +2776,18 @@ btnMute.addEventListener('click', function(){
   if (!Sfx.muted) Sfx.click();
 });
 
-document.getElementById('btnPlay').addEventListener('click', function(){
-  Sfx.init();
-  Sfx.resume();
-  document.getElementById('startScreen').classList.add('hidden');
-  startRun();
-});
 
 document.getElementById('btnRevive').addEventListener('click', function(){
-  this.disabled = true;
   showRewardedAd(function(){ revive(); });
 });
 
 document.getElementById('btnDouble').addEventListener('click', function(){
-  this.disabled = true;
   showRewardedAd(function(){
     if (!doubleUsed){
       doubleUsed = true;
       saveData.coins += runCoins;
       runCoins *= 2;
+      saveData.best = Math.max(saveData.best, runCoins);
       document.getElementById('ovCoins').textContent = fmt(runCoins);
       Sfx.cashRegister();
       updateHud();
@@ -2375,7 +2800,6 @@ document.getElementById('btnRestart').addEventListener('click', function(){
   document.getElementById('overScreen').classList.add('hidden');
   Sfx.click();
   restarts++;
-  if (restarts % 3 === 0) showMidgameAd();
   startRun();
 });
 
@@ -2398,15 +2822,15 @@ function boot(){
   setupPhysics();
   initDust();
   buildShop();
+  buildProgressHud();
   updateHud();
   updateShop();
 
-  document.getElementById('startBest').textContent = fmt(saveData.best);
   bestValEl.textContent = fmt(saveData.best);
-
   currentTier = 1;
   nextTier = randTier();
-
+  refreshRewardButtons();
+  startRun();
   requestAnimationFrame(loop);
 }
 
