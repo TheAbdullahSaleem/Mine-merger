@@ -619,6 +619,10 @@
     .hud-side{gap:5px;}
   }
 
+.shop-foot{flex-wrap:wrap;}
+.shop-boosts{margin-left:auto;display:flex;gap:6px;}
+.shop-boosts .ad-btn{width:auto;margin:0;padding:6px 10px;min-height:38px;}
+.overlay,.shop-backdrop{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
 </style>
 </head>
 <body>
@@ -679,8 +683,8 @@
       <span aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#a4825a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s7-4.4 7-10a4.2 4.2 0 0 0-7-3.1 4.2 4.2 0 0 0-7 3.1c0 5.6 7 10 7 10z"/></svg></span>
       <span>Every level is a small step. Keep digging.</span>
       <div class="shop-boosts">
-        <button class="ad-btn" id="btnDynamite" type="button">💣 Dynamite</button>
-        <button class="ad-btn" id="btnShake" type="button">〰 Shake</button>
+        <button class="ad-btn" id="btnDynamite" type="button">💣 Dynamite · 120</button>
+        <button class="ad-btn" id="btnShake" type="button">〰 Shake · 40</button>
       </div>
     </footer>
   </section>
@@ -770,7 +774,7 @@ const W = 520, H = 860;
 const WALL_L = 120, WALL_R = 440, WALL_T = 26; // 20% narrower shaft
 const FLOOR_Y = 828;
 const DROP_Y  = 108;
-const DANGER_Y = 236; // less headroom: the stack becomes dangerous sooner
+const DANGER_Y = 208;
 
 /* ==========================================================
    2. GEM TIERS
@@ -885,7 +889,7 @@ const ICO = {
    4. CANVAS / VIEW
    ========================================================== */
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+const ctx = canvas.getContext('2d', { alpha: false });
 const view = { scale: 1, ox: 0, oy: 0, dpr: 1 };
 let bgCanvas = null;
 
@@ -1091,6 +1095,27 @@ function refreshRewardButtons(){
   }
 }
 
+let lastMidgame = Date.now();
+function withMidgame(cb){
+  if (!cgSDK || !cgSDK.ad || adBusy || Date.now() - lastMidgame < 180000){ cb(); return; }
+  adBusy = true;
+  const was = Sfx.muted;
+  let done = false;
+  const fin = function(){
+    if (done) return; done = true;
+    adBusy = false; Sfx.muted = was;
+    if (Sfx.master && Sfx.ctx) Sfx.master.gain.setTargetAtTime(was ? 0 : 0.28, Sfx.ctx.currentTime, 0.04);
+    lastMidgame = Date.now();
+    cb();
+  };
+  try {
+    cgSDK.ad.requestAd('midgame', {
+      adStarted: function(){ Sfx.muted = true; if (Sfx.master && Sfx.ctx) Sfx.master.gain.setTargetAtTime(0, Sfx.ctx.currentTime, 0.025); cgGameplayStop(); },
+      adFinished: fin, adError: fin
+    });
+  } catch(e){ fin(); }
+}
+
 function showRewardedAd(onReward){
   if (adBusy || rewardedUsedThisRun || Date.now() < rewardCooldownUntil) return;
   if (!cgSDK || !cgSDK.ad || typeof cgSDK.ad.requestAd !== 'function'){
@@ -1226,14 +1251,14 @@ const UPGRADES = [
   {
     key: 'dangerTime', name: 'Rope Warden', icon: 'rope', max: 10,
     desc: function(l){
-      return 'The red rope gives you ' + (1.8 + 0.20 * l).toFixed(2) + 's to recover.';
+      return 'The red rope gives you ' + (2.4 + 0.25 * l).toFixed(2) + 's to recover.';
     },
     cost: function(l){ return Math.round(900 * Math.pow(1.55, l)); }
   },
   {
     key: 'dropCd', name: 'Cool Hands', icon: 'stopwatch', max: 10,
     desc: function(l){
-      return 'Drop cooldown: ' + Math.max(0.42, 0.76 - 0.025 * l).toFixed(2) + 's.';
+      return 'Drop cooldown: ' + Math.max(0.30, 0.62 - 0.025 * l).toFixed(2) + 's.';
     },
     cost: function(l){ return Math.round(220 * Math.pow(1.38, l)); }
   },
@@ -1273,6 +1298,7 @@ UPGRADES.forEach(function(u){ UPGRADE_MAP[u.key] = u; });
    ========================================================== */
 let engine, world;
 let gems = [];
+let pendingMerges = [];
 let particles = [];
 let texts = [];
 let dust = [];
@@ -1302,8 +1328,8 @@ let pointerWorldX = W / 2, pointerWorldY = DROP_Y, comboBannerTimer = 0;
 let milestoneTarget = 6, milestonesCompleted = 0, milestoneProgressTier = 0;
 
 /* Upgrade helpers */
-function getDropCooldown(){ return Math.max(0.42, 0.76 - 0.025 * saveData.up.dropCd); }
-function getDangerWindow(){ return 1.8 + 0.20 * saveData.up.dangerTime; }
+function getDropCooldown(){ return Math.max(0.30, 0.62 - 0.025 * saveData.up.dropCd); }
+function getDangerWindow(){ return 2.4 + 0.25 * saveData.up.dangerTime; }
 
 /* ==========================================================
    10. MATTER SETUP
@@ -1311,7 +1337,7 @@ function getDangerWindow(){ return 1.8 + 0.20 * saveData.up.dangerTime; }
 function setupPhysics(){
   engine = Engine.create();
   world = engine.world;
-  engine.gravity.y = 1.62;
+  engine.gravity.y = 1.48;
   engine.positionIterations = 8;
   engine.velocityIterations = 6;
 
@@ -1340,11 +1366,19 @@ function setupPhysics(){
       if (ga.tier !== gb.tier) continue;
       if (used.indexOf(ga) >= 0 || used.indexOf(gb) >= 0) continue;
       used.push(ga, gb);
-      doMerge(ga, gb);
+      pendingMerges.push([ga, gb]);
     }
   });
 }
 
+function flushMerges(){
+  if (!pendingMerges.length) return;
+  const q = pendingMerges; pendingMerges = [];
+  for (let i = 0; i < q.length; i++){
+    const a = q[i][0], b = q[i][1];
+    if (!a.dead && !b.dead && gameState === 'playing') doMerge(a, b);
+  }
+}
 function createGem(tier, x, y, vx, vy){
   const r = TIERS[tier - 1].r;
   const body = Bodies.circle(x, y, r, {
@@ -1376,6 +1410,7 @@ function clearGems(){
   const copy = gems.slice();
   for (let i = 0; i < copy.length; i++) removeGem(copy[i]);
   gems.length = 0;
+  pendingMerges = [];
 }
 
 /* ==========================================================
@@ -1825,8 +1860,8 @@ function buildBackground(){
 function randTier(){
   const base = 1 + saveData.up.startTier;
   const roll = Math.random();
-  if (roll < 0.68) return clamp(base, 1, TIERS.length);
-  if (roll < 0.94) return clamp(base + 1, 1, TIERS.length);
+  if (roll < 0.48) return clamp(base, 1, TIERS.length);
+  if (roll < 0.80) return clamp(base + 1, 1, TIERS.length);
   return clamp(base + 2, 1, TIERS.length);
 }
 
@@ -1844,7 +1879,7 @@ function startRun(){
   combo = 0;
   comboTimer = 0;
   dangerTimer = 0;
-  graceTimer = 0.55;
+  graceTimer = 0.8;
   freeze = 0;
   shake = 0;
   acc = 0;
@@ -1996,7 +2031,7 @@ window.addEventListener('keydown', function(e){
   if (gameState !== 'playing' || paused) return;
   if (e.key === 'ArrowLeft')  { dropX = clamp(dropX - 22, WALL_L + 20, WALL_R - 20); e.preventDefault(); }
   if (e.key === 'ArrowRight') { dropX = clamp(dropX + 22, WALL_L + 20, WALL_R - 20); e.preventDefault(); }
-  if (e.key === ' ' || e.key === 'ArrowDown') { tryDrop(); e.preventDefault(); }
+  if (e.key === ' ' || e.key === 'ArrowDown') { Sfx.init(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); tryDrop(); e.preventDefault(); }
 });
 
 /* ==========================================================
@@ -2044,7 +2079,7 @@ function updateGame(dt){
     for (let i = 0; i < gems.length; i++){
       const g = gems[i];
       const top = g.body.position.y - g.r;
-      if (top < DANGER_Y && g.age > 0.35 && g.body.speed < 2.2){
+      if (top < DANGER_Y && g.age > 0.45 && g.body.speed < 2.0){
         over = true;
         break;
       }
@@ -2461,9 +2496,7 @@ function drawParticles(){
       ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over';
     } else {
       ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color; ctx.shadowBlur = 8;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
     }
   }
   ctx.globalAlpha = 1;
@@ -2592,6 +2625,7 @@ function loop(now){
       let steps = 0;
       while (acc >= 1 / 60 && steps < 5){
         Engine.update(engine, 1000 / 60);
+        flushMerges();
         acc -= 1 / 60;
         steps++;
       }
@@ -2748,6 +2782,7 @@ function pauseGame(){
 }
 function resumeGame(){
   document.getElementById('pauseScreen').classList.add('hidden');
+  aiming = false; lastT = performance.now(); acc = 0; freeze = 0;
   if (gameState === 'playing'){
     paused = false;
     cgGameplayStart();
@@ -2758,8 +2793,7 @@ document.getElementById('btnPause').addEventListener('click', pauseGame);
 document.getElementById('btnResume').addEventListener('click', resumeGame);
 document.getElementById('btnPauseRestart').addEventListener('click', function(){
   document.getElementById('pauseScreen').classList.add('hidden');
-  paused = false;
-  startRun();
+  withMidgame(startRun);
 });
 document.getElementById('btnShop').addEventListener('click', openShop);
 document.getElementById('shopClose').addEventListener('click', closeShop);
@@ -2777,6 +2811,31 @@ btnMute.addEventListener('click', function(){
 });
 
 
+const BOOST_COST = { dynamite: 120, shake: 40 };
+function useBoost(kind){
+  const cost = BOOST_COST[kind];
+  if (gameState !== 'playing') return;
+  if (saveData.coins < cost){ Sfx.tone(170, 0.1, 'square', 0.06, 0); showToast('Not enough coins (' + cost + ' needed)'); return; }
+  if (!gems.length){ closeShop(); showToast('The shaft is empty.'); return; }
+  saveData.coins -= cost;
+  closeShop();
+  if (kind === 'dynamite'){
+    const n = Math.min(4, Math.ceil(gems.length * 0.3));
+    gems.slice().sort(function(a, b){ return a.body.position.y - b.body.position.y; }).slice(0, n).forEach(function(g){
+      burst(g.body.position.x, g.body.position.y, TIERS[g.tier - 1].glow, 14, 4); removeGem(g);
+    });
+    Sfx.explosion(); addShake(14);
+  } else {
+    gems.forEach(function(g){
+      Body.setVelocity(g.body, { x: g.body.velocity.x + (Math.random() - 0.5) * 7, y: g.body.velocity.y - 2 - Math.random() * 2.5 });
+      g.age = Math.min(g.age, 0.3);
+    });
+    Sfx.dropThud(); addShake(8);
+  }
+  saveNow(); updateHud();
+}
+document.getElementById('btnDynamite').addEventListener('click', function(){ useBoost('dynamite'); });
+document.getElementById('btnShake').addEventListener('click', function(){ useBoost('shake'); });
 document.getElementById('btnRevive').addEventListener('click', function(){
   showRewardedAd(function(){ revive(); });
 });
@@ -2800,12 +2859,12 @@ document.getElementById('btnRestart').addEventListener('click', function(){
   document.getElementById('overScreen').classList.add('hidden');
   Sfx.click();
   restarts++;
-  startRun();
+  withMidgame(startRun);
 });
 
 document.addEventListener('visibilitychange', function(){
   if (document.hidden){
-    if (gameState === 'playing') cgGameplayStop();
+    if (gameState === 'playing'){ cgGameplayStop(); if (!adBusy) pauseGame(); }
   } else {
     if (gameState === 'playing' && !paused) cgGameplayStart();
     lastT = performance.now();
